@@ -41,6 +41,7 @@ Godot autoload 配置：
 ## Phase 2 Runtime Pieces
 
 - `MockLocationService`：只保存模拟玩家坐标，并通过信号通知位置变化。
+- `LocationService`：雷达统一定位入口。PC/Editor 使用 mock；Android 请求前台定位权限并读取 Android 定位服务。
 - `MonsterDatabase`：从 `data/monsters.json` 读取怪物模板。
 - `MonsterSpawner`：根据玩家初始位置生成固定数量的怪物实例，并提供距离和雷达相对坐标计算。
 - `RadarController`：连接移动按钮、重绘怪物点、处理点击怪物进入捕捉界面。
@@ -53,6 +54,27 @@ Godot autoload 配置：
 - `GameState`：捕捉成功时调用 `SaveManager.add_captured_monster()`，并缓存当前图鉴列表给 UI 使用。
 - `CollectionController`：进入图鉴时调用 `GameState.load_collection()`，再生成已捕捉怪物列表。
 
+## Phase 4 Runtime Pieces
+
+- `LocationService`：
+  - `MODE_MOCK`：PC、Editor、Windows 默认模式，内部委托 `MockLocationService`。
+  - `MODE_ANDROID`：Android 真机模式，请求 `android.permission.ACCESS_FINE_LOCATION`，必要时降级请求 `ACCESS_COARSE_LOCATION`。
+  - 通过状态字典报告 `permission_denied`、`provider_unavailable`、`waiting_for_fix`、`low_accuracy`、`location_ready`。
+  - 使用首个有效经纬度作为原点，将经纬度换算为雷达米制相对坐标。
+- `RadarController`：
+  - 只依赖 `LocationService`。
+  - PC/Editor 下显示模拟移动按钮。
+  - Android 下隐藏模拟移动按钮，显示 GPS 状态。
+
+## Android Export Permissions
+
+`export_presets.cfg` 只为前台定位启用：
+
+- `permissions/access_fine_location=true`
+- `permissions/access_coarse_location=true`
+
+未启用后台定位权限。
+
 ## Scene Flow
 
 ```text
@@ -64,6 +86,8 @@ MainMenu
 RadarScene
   点击怪物点 -> CaptureScene
   返回 -> MainMenu
+  PC/Editor -> mock 位置移动
+  Android -> 前台 GPS 状态与相对坐标
 
 CaptureScene
   返回雷达 -> RadarScene
@@ -80,6 +104,7 @@ CollectionScene
 - `scripts/ui/MainMenu.gd`：绑定主菜单按钮并执行场景切换。
 - `scripts/ui/PlaceholderScreen.gd`：为占位场景提供当前场景记录和返回主菜单逻辑。
 - `scripts/radar/RadarController.gd`：雷达原型交互。
+- `scripts/location/LocationService.gd`：统一定位服务。
 - `scripts/capture/CaptureController.gd`：捕捉详情展示。
 - `scripts/capture/CaptureSystem.gd`：捕捉概率和结果计算。
 - `scripts/save/SaveManager.gd`：本地 JSON 存档。

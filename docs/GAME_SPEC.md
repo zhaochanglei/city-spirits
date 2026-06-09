@@ -47,6 +47,19 @@ City Spirits 是一个单机优先、支持局域网联机的 GPS 雷达捕捉�
 - JSON 损坏时回退到默认存档并打印 warning，不让游戏崩溃。
 - `CollectionScene` 显示已捕捉怪物列表。
 
+## Phase 4 Scope
+
+第四阶段接入统一定位服务，并保留 PC 模拟位置模式：
+
+- 新增 `LocationService` 作为雷达唯一定位入口。
+- PC、Editor、Windows 使用 `MockLocationService`，继续显示上、下、左、右模拟移动按钮。
+- Android 真机使用前台定位权限。
+- Android 导出声明 `ACCESS_FINE_LOCATION` 和 `ACCESS_COARSE_LOCATION`。
+- Android 不请求后台定位权限。
+- 权限被拒绝、定位服务不可用、精度过低、暂时没有定位结果时，雷达显示明确状态文本，不崩溃。
+- Android 首个有效经纬度作为雷达原点，后续经纬度换算成米制相对坐标。
+- `RadarScene` 不直接依赖 `MockLocationService`。
+
 ## Out of Scope for Phase 1
 
 - GPS 定位、位置权限、距离计算。
@@ -69,6 +82,14 @@ City Spirits 是一个单机优先、支持局域网联机的 GPS 雷达捕捉�
 - 复杂背包、道具消耗、捕捉动画、精灵成长。
 - 云同步、账号、远程存档。
 - Android 导出配置调整。
+
+## Out of Scope for Phase 4
+
+- 后台定位。
+- 连续高频轨迹记录。
+- 局域网、真实地图、AR、云服务。
+- 捕捉系统或存档格式调整。
+- 第三方 Android 插件。
 
 ## Core Loop Target
 

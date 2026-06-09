@@ -34,6 +34,19 @@
 - [x] Display captured monsters in `CollectionScene`.
 - [x] Keep GPS, LAN, real maps, AR, and complex inventory out of scope.
 
+## Phase 4 Completed Android Foreground Location
+
+- [x] Add `LocationService` as the unified location entry point.
+- [x] Keep PC / Editor / Windows on mock location mode.
+- [x] Keep mock movement buttons visible in mock mode.
+- [x] Hide mock movement buttons in Android mode.
+- [x] Request Android foreground location permission.
+- [x] Read Android last-known GPS/network location through the Android runtime bridge.
+- [x] Convert Android latitude/longitude to local radar meters.
+- [x] Show status text for denied permission, unavailable provider, low accuracy, and missing fixes.
+- [x] Enable `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` in Android export permissions.
+- [x] Do not request background location.
+
 ## Suggested Next Tasks
 
 - [ ] Add Android export smoke checklist for friend-playtest APK builds.
@@ -41,6 +54,7 @@
 - [ ] Plan LAN discovery and synchronization separately before implementation.
 - [ ] Add a capture result animation pass.
 - [ ] Add a small test-data reset option for local playtests.
+- [ ] Test GPS behavior on an actual Android APK and record device-specific notes.
 
 ## Guardrails
 

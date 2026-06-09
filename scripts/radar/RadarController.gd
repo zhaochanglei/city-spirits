@@ -2,7 +2,7 @@ extends Control
 
 const MONSTER_BUTTON_SIZE := Vector2(42.0, 42.0)
 const PLAYER_DOT_SIZE := Vector2(18.0, 18.0)
-const MockLocationServiceScript := preload("res://scripts/location/MockLocationService.gd")
+const LocationServiceScript := preload("res://scripts/location/LocationService.gd")
 const MonsterDatabaseScript := preload("res://scripts/monsters/MonsterDatabase.gd")
 const MonsterSpawnerScript := preload("res://scripts/monsters/MonsterSpawner.gd")
 
@@ -17,6 +17,7 @@ var spawned_monsters: Array[Dictionary] = []
 @onready var player_dot: ColorRect = %PlayerDot
 @onready var position_label: Label = %PositionLabel
 @onready var status_label: Label = %StatusLabel
+@onready var move_grid: GridContainer = %MoveGrid
 @onready var up_button: Button = %UpButton
 @onready var down_button: Button = %DownButton
 @onready var left_button: Button = %LeftButton
@@ -26,7 +27,7 @@ var spawned_monsters: Array[Dictionary] = []
 func _ready() -> void:
 	GameState.set_current_scene(Constants.SCENE_RADAR)
 
-	location_service = MockLocationServiceScript.new()
+	location_service = LocationServiceScript.new()
 	monster_database = MonsterDatabaseScript.new()
 	add_child(location_service)
 	add_child(monster_database)
@@ -37,6 +38,9 @@ func _ready() -> void:
 	left_button.pressed.connect(_move_left)
 	right_button.pressed.connect(_move_right)
 	location_service.location_changed.connect(_on_location_changed)
+	location_service.status_changed.connect(_on_location_status_changed)
+	location_service.start()
+	move_grid.visible = location_service.is_simulation_available()
 
 	if not monster_database.load_from_file(Constants.MONSTER_DATA_PATH):
 		status_label.text = "怪物数据加载失败"
@@ -46,7 +50,7 @@ func _ready() -> void:
 		location_service.get_current_position(),
 		monster_database.get_all_monsters()
 	)
-	status_label.text = "发现 %d 个雷达信号" % spawned_monsters.size()
+	_update_status_text(location_service.get_status())
 	call_deferred("_update_radar")
 
 
@@ -72,11 +76,18 @@ func _move_right() -> void:
 
 
 func _move_player(delta: Vector2) -> void:
+	if not location_service.is_simulation_available():
+		return
+
 	location_service.move_by(delta)
 
 
 func _on_location_changed(_position: Vector2) -> void:
-	EventBus.mock_location_changed.emit(location_service.get_current_position())
+	_update_radar()
+
+
+func _on_location_status_changed(next_status: Dictionary) -> void:
+	_update_status_text(next_status)
 	_update_radar()
 
 
@@ -91,7 +102,7 @@ func _update_radar() -> void:
 	var radar_center := _get_radar_center()
 	var pixels_per_meter := _get_pixels_per_meter()
 
-	position_label.text = "模拟位置: X %.0f m / Y %.0f m" % [player_position.x, player_position.y]
+	_update_position_text(player_position)
 
 	player_dot.size = PLAYER_DOT_SIZE
 	player_dot.position = radar_center - (PLAYER_DOT_SIZE * 0.5)
@@ -145,6 +156,31 @@ func _on_back_pressed() -> void:
 	var error := get_tree().change_scene_to_file(Constants.SCENE_MAIN_MENU)
 	if error != OK:
 		push_error("Failed to return to main menu: %s" % error)
+
+
+func _update_status_text(next_status: Dictionary) -> void:
+	var status_message := str(next_status.get("message", ""))
+	if status_message.is_empty():
+		status_message = "发现 %d 个雷达信号" % spawned_monsters.size()
+	status_label.text = status_message
+	status_label.tooltip_text = status_message
+
+
+func _update_position_text(player_position: Vector2) -> void:
+	if location_service.get_runtime_mode() == "android":
+		if location_service.has_current_position():
+			position_label.text = "GPS 相对位置: X %.0f m / Y %.0f m" % [
+				player_position.x,
+				player_position.y
+			]
+		else:
+			position_label.text = "GPS 位置: 暂不可用"
+		return
+
+	position_label.text = "模拟位置: X %.0f m / Y %.0f m" % [
+		player_position.x,
+		player_position.y
+	]
 
 
 func _get_radar_center() -> Vector2:

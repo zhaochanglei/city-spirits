@@ -2,7 +2,7 @@
 
 City Spirits is a Godot 4.6 Android-first GPS radar capture game prototype. The project is single-player first and intended for small friend playtests through APK builds.
 
-Phase 3 adds a simple capture system, local JSON save data, and a working collection screen. It does not implement real GPS, LAN networking, AR, real maps, cloud services, complex inventory, or third-party plugins.
+Phase 4 adds a unified location service for PC mock movement and Android foreground location. It does not implement background location, LAN networking, AR, real maps, cloud services, complex inventory, or third-party plugins.
 
 ## Current Status
 
@@ -16,6 +16,9 @@ Phase 3 adds a simple capture system, local JSON save data, and a working collec
 - Successful captures are saved to `user://save/collection.json`.
 - Collection displays locally saved captured monsters.
 - Missing save files are created automatically; corrupt JSON falls back to a default save with a warning.
+- PC / Editor / Windows uses mock location and keeps the movement buttons visible.
+- Android uses foreground location permission and reads Android `LocationManager` last-known GPS/network location through Godot's Android runtime bridge.
+- Android permission denial, unavailable providers, low accuracy, and missing fixes show radar status text instead of crashing.
 
 ## Run
 
@@ -53,6 +56,7 @@ tests/
 - `scripts/core/GameState.gd`：current mode, current scene path, selected monster, and local captured spirit IDs.
 - `scripts/save/SaveManager.gd`：JSON save loading, writing, default creation, and corrupt-file fallback.
 - `scripts/location/MockLocationService.gd`：mock player position and movement signal.
+- `scripts/location/LocationService.gd`：unified PC mock / Android foreground location service.
 - `scripts/monsters/MonsterDatabase.gd`：loads monster templates from JSON.
 - `scripts/monsters/MonsterSpawner.gd`：creates deterministic radar monster instances and relative radar positions.
 - `scripts/radar/RadarController.gd`：radar UI, mock movement, monster point rendering, and capture navigation.
@@ -67,3 +71,12 @@ tests/
 - `docs/GAME_SPEC.md`
 - `docs/ARCHITECTURE.md`
 - `docs/CODEX_TASKS.md`
+
+## Android Location Permissions
+
+The Android export preset enables:
+
+- `permissions/access_fine_location=true`
+- `permissions/access_coarse_location=true`
+
+It does not request `ACCESS_BACKGROUND_LOCATION`.
