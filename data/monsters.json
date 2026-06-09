@@ -1,0 +1,62 @@
+[
+  {
+    "id": "mist_imp",
+    "name": "雾巷小鬼",
+    "rarity": "common",
+    "hint": "喜欢在潮湿的街角留下淡淡雾气。"
+  },
+  {
+    "id": "neon_moth",
+    "name": "霓虹蛾",
+    "rarity": "common",
+    "hint": "会绕着招牌灯慢慢盘旋。"
+  },
+  {
+    "id": "brick_sprite",
+    "name": "砖墙精",
+    "rarity": "common",
+    "hint": "常躲在老建筑的墙影里。"
+  },
+  {
+    "id": "metro_wisp",
+    "name": "地铁流光",
+    "rarity": "uncommon",
+    "hint": "移动时像一截被风吹散的车灯。"
+  },
+  {
+    "id": "rain_drum",
+    "name": "雨鼓灵",
+    "rarity": "common",
+    "hint": "雨后会敲响看不见的小鼓。"
+  },
+  {
+    "id": "alley_lantern",
+    "name": "巷灯守",
+    "rarity": "uncommon",
+    "hint": "总在路灯亮起前几秒出现。"
+  },
+  {
+    "id": "crosswalk_fox",
+    "name": "斑马线狐",
+    "rarity": "uncommon",
+    "hint": "只在安全等待时靠近。"
+  },
+  {
+    "id": "paper_crane",
+    "name": "纸鹤信使",
+    "rarity": "rare",
+    "hint": "带着旧日留言飞过城市上空。"
+  },
+  {
+    "id": "steam_bean",
+    "name": "蒸汽豆",
+    "rarity": "common",
+    "hint": "从热饮杯边缘探出头。"
+  },
+  {
+    "id": "clocktower_echo",
+    "name": "钟楼回声",
+    "rarity": "rare",
+    "hint": "会在整点附近短暂现身。"
+  }
+]

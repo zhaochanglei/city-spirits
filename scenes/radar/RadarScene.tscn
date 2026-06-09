@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/ui/PlaceholderScreen.gd" id="1_placeholder"]
+[ext_resource type="Script" path="res://scripts/radar/RadarController.gd" id="1_radar"]
 
 [node name="RadarScene" type="Control"]
 layout_mode = 3
@@ -9,8 +9,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_placeholder")
-scene_path = "res://scenes/radar/RadarScene.tscn"
+script = ExtResource("1_radar")
 
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
@@ -35,10 +34,11 @@ theme_override_constants/margin_bottom = 24
 
 [node name="RootStack" type="VBoxContainer" parent="MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 18
 
 [node name="TopBar" type="HBoxContainer" parent="MarginContainer/RootStack"]
 layout_mode = 2
+theme_override_constants/separation = 12
 
 [node name="BackButton" type="Button" parent="MarginContainer/RootStack/TopBar"]
 unique_name_in_owner = true
@@ -50,30 +50,126 @@ text = "返回"
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 28
-text = "雷达"
+text = "单机雷达"
 horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="TitleSpacer" type="Control" parent="MarginContainer/RootStack/TopBar"]
-custom_minimum_size = Vector2(96, 44)
+[node name="StatusLabel" type="Label" parent="MarginContainer/RootStack/TopBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(156, 44)
 layout_mode = 2
+text = "正在扫描"
+horizontal_alignment = 2
+vertical_alignment = 1
 
-[node name="Content" type="CenterContainer" parent="MarginContainer/RootStack"]
+[node name="RadarHolder" type="CenterContainer" parent="MarginContainer/RootStack"]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="PlaceholderStack" type="VBoxContainer" parent="MarginContainer/RootStack/Content"]
-custom_minimum_size = Vector2(320, 0)
+[node name="RadarArea" type="Control" parent="MarginContainer/RootStack/RadarHolder"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 360)
+layout_mode = 2
+
+[node name="RadarBackground" type="ColorRect" parent="MarginContainer/RootStack/RadarHolder/RadarArea"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0156863, 0.145098, 0.14902, 1)
+
+[node name="NorthLabel" type="Label" parent="MarginContainer/RootStack/RadarHolder/RadarArea"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -12.0
+offset_top = 8.0
+offset_right = 12.0
+offset_bottom = 34.0
+grow_horizontal = 2
+text = "N"
+horizontal_alignment = 1
+
+[node name="MonsterLayer" type="Control" parent="MarginContainer/RootStack/RadarHolder/RadarArea"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PlayerDot" type="ColorRect" parent="MarginContainer/RootStack/RadarHolder/RadarArea"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_right = 18.0
+offset_bottom = 18.0
+color = Color(0.956863, 0.894118, 0.45098, 1)
+
+[node name="ControlPanel" type="VBoxContainer" parent="MarginContainer/RootStack"]
 layout_mode = 2
 theme_override_constants/separation = 12
+alignment = 1
 
-[node name="PlaceholderTitle" type="Label" parent="MarginContainer/RootStack/Content/PlaceholderStack"]
+[node name="PositionLabel" type="Label" parent="MarginContainer/RootStack/ControlPanel"]
+unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "雷达界面占位"
+text = "模拟位置: X 0 m / Y 0 m"
 horizontal_alignment = 1
 
-[node name="PlaceholderText" type="Label" parent="MarginContainer/RootStack/Content/PlaceholderStack"]
+[node name="MoveGrid" type="GridContainer" parent="MarginContainer/RootStack/ControlPanel"]
 layout_mode = 2
-text = "后续阶段接入附近精灵刷新、距离提示与捕捉入口。"
+size_flags_horizontal = 4
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="PadSpacerTopLeft" type="Control" parent="MarginContainer/RootStack/ControlPanel/MoveGrid"]
+custom_minimum_size = Vector2(84, 44)
+layout_mode = 2
+
+[node name="UpButton" type="Button" parent="MarginContainer/RootStack/ControlPanel/MoveGrid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(84, 44)
+layout_mode = 2
+text = "上"
+
+[node name="PadSpacerTopRight" type="Control" parent="MarginContainer/RootStack/ControlPanel/MoveGrid"]
+custom_minimum_size = Vector2(84, 44)
+layout_mode = 2
+
+[node name="LeftButton" type="Button" parent="MarginContainer/RootStack/ControlPanel/MoveGrid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(84, 44)
+layout_mode = 2
+text = "左"
+
+[node name="MoveCenterLabel" type="Label" parent="MarginContainer/RootStack/ControlPanel/MoveGrid"]
+custom_minimum_size = Vector2(84, 44)
+layout_mode = 2
+text = "移动"
 horizontal_alignment = 1
-autowrap_mode = 3
+vertical_alignment = 1
+
+[node name="RightButton" type="Button" parent="MarginContainer/RootStack/ControlPanel/MoveGrid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(84, 44)
+layout_mode = 2
+text = "右"
+
+[node name="PadSpacerBottomLeft" type="Control" parent="MarginContainer/RootStack/ControlPanel/MoveGrid"]
+custom_minimum_size = Vector2(84, 44)
+layout_mode = 2
+
+[node name="DownButton" type="Button" parent="MarginContainer/RootStack/ControlPanel/MoveGrid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(84, 44)
+layout_mode = 2
+text = "下"
+
+[node name="PadSpacerBottomRight" type="Control" parent="MarginContainer/RootStack/ControlPanel/MoveGrid"]
+custom_minimum_size = Vector2(84, 44)
+layout_mode = 2

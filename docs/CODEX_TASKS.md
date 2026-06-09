@@ -10,11 +10,21 @@
 - [x] Add project specification and architecture notes.
 - [x] Update README.
 
+## Phase 2 Completed Single-Player Radar Prototype
+
+- [x] Add `MockLocationService` for simulated player movement.
+- [x] Add monster templates in `data/monsters.json`.
+- [x] Add `MonsterDatabase` and `MonsterSpawner`.
+- [x] Render 5-10 monster points around a centered player in `RadarScene`.
+- [x] Add up, down, left, and right buttons for simulated movement.
+- [x] Recompute monster point positions after simulated movement.
+- [x] Open `CaptureScene` when a monster point is clicked.
+- [x] Display selected monster name, ID, distance, world position, and hint in `CaptureScene`.
+- [x] Keep `CollectionScene` as a placeholder.
+
 ## Suggested Next Tasks
 
-- [ ] Define the first local spirit data format in `data/spirits`.
-- [ ] Add a simple radar mock that spawns deterministic placeholder spirits without GPS.
-- [ ] Add capture scene entry from radar using mock spirit IDs.
+- [ ] Add a simple non-random capture result prototype without probability tuning.
 - [ ] Persist collected spirits locally with `ConfigFile` or a small save resource.
 - [ ] Add Android export smoke checklist for friend-playtest APK builds.
 - [ ] Plan GPS permission and location adapter separately before implementation.

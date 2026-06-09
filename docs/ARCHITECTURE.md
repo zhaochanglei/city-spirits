@@ -10,9 +10,15 @@ scenes/
   capture/
   collection/
 scripts/
+  capture/
   core/
+  location/
+  monsters/
+  radar/
   ui/
+data/
 docs/
+tests/
 ```
 
 ## Entry Point
@@ -25,9 +31,17 @@ Godot autoload 配置：
 
 - `Constants`：集中维护场景路径、模式字符串和项目常量。
 - `EventBus`：集中声明跨场景信号。
-- `GameState`：保存当前模式、当前场景路径和本地收集状态。
+- `GameState`：保存当前模式、当前场景路径、当前选中怪物和本地收集状态。
 
-这些脚本先保持轻量，避免在第一阶段提前耦合 GPS、局域网或捕捉规则。
+这些脚本保持轻量，避免提前耦合 GPS、局域网、捕捉概率或存档规则。
+
+## Phase 2 Runtime Pieces
+
+- `MockLocationService`：只保存模拟玩家坐标，并通过信号通知位置变化。
+- `MonsterDatabase`：从 `data/monsters.json` 读取怪物模板。
+- `MonsterSpawner`：根据玩家初始位置生成固定数量的怪物实例，并提供距离和雷达相对坐标计算。
+- `RadarController`：连接移动按钮、重绘怪物点、处理点击怪物进入捕捉界面。
+- `CaptureController`：从 `GameState` 读取当前选中怪物并展示基础信息。
 
 ## Scene Flow
 
@@ -37,16 +51,25 @@ MainMenu
   局域网模式 -> RadarScene
   图鉴     -> CollectionScene
 
-RadarScene / CaptureScene / CollectionScene
+RadarScene
+  点击怪物点 -> CaptureScene
+  返回 -> MainMenu
+
+CaptureScene
+  返回雷达 -> RadarScene
+
+CollectionScene
   返回 -> MainMenu
 ```
 
-局域网模式当前只记录模式并进入雷达占位场景，不包含网络实现。
+局域网模式当前只记录模式并进入同一个雷达原型，不包含网络实现。
 
 ## UI Scripts
 
 - `scripts/ui/MainMenu.gd`：绑定主菜单按钮并执行场景切换。
 - `scripts/ui/PlaceholderScreen.gd`：为占位场景提供当前场景记录和返回主菜单逻辑。
+- `scripts/radar/RadarController.gd`：雷达原型交互。
+- `scripts/capture/CaptureController.gd`：捕捉详情展示。
 
 ## Future Architecture Notes
 

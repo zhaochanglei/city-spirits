@@ -3,6 +3,7 @@ extends Node
 var current_mode := ""
 var current_scene_path := ""
 var captured_spirits: Array[String] = []
+var selected_monster: Dictionary = {}
 
 
 func start_mode(mode: String) -> void:
@@ -27,6 +28,22 @@ func has_spirit(spirit_id: String) -> bool:
 	return captured_spirits.has(spirit_id)
 
 
+func select_monster(monster: Dictionary) -> void:
+	selected_monster = monster.duplicate(true)
+	var monster_id := str(selected_monster.get("id", ""))
+	EventBus.monster_selected.emit(monster_id)
+	EventBus.capture_started.emit(monster_id)
+
+
+func get_selected_monster() -> Dictionary:
+	return selected_monster.duplicate(true)
+
+
+func clear_selected_monster() -> void:
+	selected_monster = {}
+
+
 func reset_session() -> void:
 	current_mode = ""
 	current_scene_path = ""
+	selected_monster = {}
