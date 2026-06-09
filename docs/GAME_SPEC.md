@@ -30,6 +30,23 @@ City Spirits 是一个单机优先、支持局域网联机的 GPS 雷达捕捉�
 - `CaptureScene` 展示怪物名称、ID、距离、世界坐标和提示文本。
 - `CollectionScene` 仍保持占位，不实现图鉴存档。
 
+## Phase 3 Scope
+
+第三阶段实现基础捕捉、JSON 本地存档和图鉴：
+
+- `CaptureSystem` 根据基础捕捉率和投掷倍率计算成功或失败。
+- `CaptureScene` 显示怪物名称、ID、稀有度、基础捕捉率、距离、世界坐标和提示。
+- 投掷方式：
+  - 普通投掷：倍率 1.0。
+  - 精准投掷：倍率 1.2。
+  - 冒险投掷：倍率 1.5；失败后怪物逃跑，本次不能继续投掷。
+- 捕捉成功后，怪物写入玩家图鉴。
+- `SaveManager` 使用 JSON 保存本地数据。
+- 默认存档路径是 `user://save/collection.json`。
+- 文件不存在时自动创建默认存档。
+- JSON 损坏时回退到默认存档并打印 warning，不让游戏崩溃。
+- `CollectionScene` 显示已捕捉怪物列表。
+
 ## Out of Scope for Phase 1
 
 - GPS 定位、位置权限、距离计算。
@@ -46,6 +63,13 @@ City Spirits 是一个单机优先、支持局域网联机的 GPS 雷达捕捉�
 - 捕捉概率、捕捉结果、图鉴存档。
 - 云服务和远程数据。
 
+## Out of Scope for Phase 3
+
+- GPS、局域网、真实地图、AR。
+- 复杂背包、道具消耗、捕捉动画、精灵成长。
+- 云同步、账号、远程存档。
+- Android 导出配置调整。
+
 ## Core Loop Target
 
 后续完整核心循环：
@@ -60,8 +84,8 @@ City Spirits 是一个单机优先、支持局域网联机的 GPS 雷达捕捉�
 
 - `MainMenu.tscn`：游戏入口与模式选择。
 - `RadarScene.tscn`：mock 单机雷达探索界面。
-- `CaptureScene.tscn`：展示被点击怪物的基础信息。
-- `CollectionScene.tscn`：精灵图鉴界面。
+- `CaptureScene.tscn`：展示被点击怪物的基础信息并执行捕捉。
+- `CollectionScene.tscn`：展示本地已捕捉怪物列表。
 
 ## Development Constraints
 

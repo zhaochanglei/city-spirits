@@ -34,7 +34,7 @@ theme_override_constants/margin_bottom = 24
 
 [node name="RootStack" type="VBoxContainer" parent="MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 18
 
 [node name="TopBar" type="HBoxContainer" parent="MarginContainer/RootStack"]
 layout_mode = 2
@@ -62,9 +62,9 @@ layout_mode = 2
 size_flags_vertical = 3
 
 [node name="DetailStack" type="VBoxContainer" parent="MarginContainer/RootStack/Content"]
-custom_minimum_size = Vector2(360, 0)
+custom_minimum_size = Vector2(380, 0)
 layout_mode = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 12
 
 [node name="NameLabel" type="Label" parent="MarginContainer/RootStack/Content/DetailStack"]
 unique_name_in_owner = true
@@ -77,6 +77,18 @@ horizontal_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 text = "ID: -"
+horizontal_alignment = 1
+
+[node name="RarityLabel" type="Label" parent="MarginContainer/RootStack/Content/DetailStack"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "稀有度: -"
+horizontal_alignment = 1
+
+[node name="CaptureRateLabel" type="Label" parent="MarginContainer/RootStack/Content/DetailStack"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "基础捕捉率: -"
 horizontal_alignment = 1
 
 [node name="DistanceLabel" type="Label" parent="MarginContainer/RootStack/Content/DetailStack"]
@@ -97,3 +109,32 @@ layout_mode = 2
 text = "请从雷达界面点击一个怪物点进入。"
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="ResultLabel" type="Label" parent="MarginContainer/RootStack/Content/DetailStack"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "选择一种投掷方式。"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ThrowButtons" type="VBoxContainer" parent="MarginContainer/RootStack/Content/DetailStack"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NormalThrowButton" type="Button" parent="MarginContainer/RootStack/Content/DetailStack/ThrowButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 48)
+layout_mode = 2
+text = "普通投掷  x1.0"
+
+[node name="PreciseThrowButton" type="Button" parent="MarginContainer/RootStack/Content/DetailStack/ThrowButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 48)
+layout_mode = 2
+text = "精准投掷  x1.2"
+
+[node name="AdventureThrowButton" type="Button" parent="MarginContainer/RootStack/Content/DetailStack/ThrowButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 48)
+layout_mode = 2
+text = "冒险投掷  x1.5"

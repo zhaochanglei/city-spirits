@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Constants="*res://scripts/core/Constants.gd"
 EventBus="*res://scripts/core/EventBus.gd"
+SaveManager="*res://scripts/save/SaveManager.gd"
 GameState="*res://scripts/core/GameState.gd"
 
 [physics]

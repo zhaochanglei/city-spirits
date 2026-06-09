@@ -11,10 +11,12 @@ scenes/
   collection/
 scripts/
   capture/
+  collection/
   core/
   location/
   monsters/
   radar/
+  save/
   ui/
 data/
 docs/
@@ -31,6 +33,7 @@ Godot autoload 配置：
 
 - `Constants`：集中维护场景路径、模式字符串和项目常量。
 - `EventBus`：集中声明跨场景信号。
+- `SaveManager`：管理 `user://save/collection.json` 的 JSON 读写、默认创建和损坏回退。
 - `GameState`：保存当前模式、当前场景路径、当前选中怪物和本地收集状态。
 
 这些脚本保持轻量，避免提前耦合 GPS、局域网、捕捉概率或存档规则。
@@ -42,6 +45,13 @@ Godot autoload 配置：
 - `MonsterSpawner`：根据玩家初始位置生成固定数量的怪物实例，并提供距离和雷达相对坐标计算。
 - `RadarController`：连接移动按钮、重绘怪物点、处理点击怪物进入捕捉界面。
 - `CaptureController`：从 `GameState` 读取当前选中怪物并展示基础信息。
+
+## Phase 3 Runtime Pieces
+
+- `CaptureSystem`：纯逻辑对象，输入怪物数据、投掷倍率和随机判定值，输出成功/失败、概率、判定值和逃跑状态。
+- `SaveManager`：autoload，默认写入 `user://save/collection.json`。缺文件时创建 `{ version, captured_monsters }`，损坏时 warning 后重写默认档。
+- `GameState`：捕捉成功时调用 `SaveManager.add_captured_monster()`，并缓存当前图鉴列表给 UI 使用。
+- `CollectionController`：进入图鉴时调用 `GameState.load_collection()`，再生成已捕捉怪物列表。
 
 ## Scene Flow
 
@@ -57,6 +67,7 @@ RadarScene
 
 CaptureScene
   返回雷达 -> RadarScene
+  捕捉成功 -> 写入 SaveManager / 更新图鉴缓存
 
 CollectionScene
   返回 -> MainMenu
@@ -70,6 +81,9 @@ CollectionScene
 - `scripts/ui/PlaceholderScreen.gd`：为占位场景提供当前场景记录和返回主菜单逻辑。
 - `scripts/radar/RadarController.gd`：雷达原型交互。
 - `scripts/capture/CaptureController.gd`：捕捉详情展示。
+- `scripts/capture/CaptureSystem.gd`：捕捉概率和结果计算。
+- `scripts/save/SaveManager.gd`：本地 JSON 存档。
+- `scripts/collection/CollectionController.gd`：图鉴列表。
 
 ## Future Architecture Notes
 

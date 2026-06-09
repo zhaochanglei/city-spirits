@@ -50,5 +50,6 @@ func _normalize_monster(raw_monster: Dictionary) -> Dictionary:
 		"id": str(raw_monster.get("id", "")),
 		"name": str(raw_monster.get("name", "")),
 		"rarity": str(raw_monster.get("rarity", "common")),
+		"base_capture_rate": float(raw_monster.get("base_capture_rate", 0.4)),
 		"hint": str(raw_monster.get("hint", ""))
 	}

@@ -22,13 +22,25 @@
 - [x] Display selected monster name, ID, distance, world position, and hint in `CaptureScene`.
 - [x] Keep `CollectionScene` as a placeholder.
 
+## Phase 3 Completed Capture, Save, and Collection
+
+- [x] Add `CaptureSystem` for capture success and failure results.
+- [x] Show monster rarity, base capture rate, and distance in `CaptureScene`.
+- [x] Add normal, precise, and adventure throw buttons.
+- [x] Mark adventure throw failures as escaped.
+- [x] Save successful captures to local JSON.
+- [x] Create a default save when no save file exists.
+- [x] Fall back to a default save with warning when JSON is corrupt.
+- [x] Display captured monsters in `CollectionScene`.
+- [x] Keep GPS, LAN, real maps, AR, and complex inventory out of scope.
+
 ## Suggested Next Tasks
 
-- [ ] Add a simple non-random capture result prototype without probability tuning.
-- [ ] Persist collected spirits locally with `ConfigFile` or a small save resource.
 - [ ] Add Android export smoke checklist for friend-playtest APK builds.
 - [ ] Plan GPS permission and location adapter separately before implementation.
 - [ ] Plan LAN discovery and synchronization separately before implementation.
+- [ ] Add a capture result animation pass.
+- [ ] Add a small test-data reset option for local playtests.
 
 ## Guardrails
 
