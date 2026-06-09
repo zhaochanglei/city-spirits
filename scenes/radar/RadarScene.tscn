@@ -1,0 +1,79 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/PlaceholderScreen.gd" id="1_placeholder"]
+
+[node name="RadarScene" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_placeholder")
+scene_path = "res://scenes/radar/RadarScene.tscn"
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0392157, 0.0980392, 0.117647, 1)
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="RootStack" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="TopBar" type="HBoxContainer" parent="MarginContainer/RootStack"]
+layout_mode = 2
+
+[node name="BackButton" type="Button" parent="MarginContainer/RootStack/TopBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(96, 44)
+layout_mode = 2
+text = "返回"
+
+[node name="Title" type="Label" parent="MarginContainer/RootStack/TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 28
+text = "雷达"
+horizontal_alignment = 1
+
+[node name="TitleSpacer" type="Control" parent="MarginContainer/RootStack/TopBar"]
+custom_minimum_size = Vector2(96, 44)
+layout_mode = 2
+
+[node name="Content" type="CenterContainer" parent="MarginContainer/RootStack"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PlaceholderStack" type="VBoxContainer" parent="MarginContainer/RootStack/Content"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="PlaceholderTitle" type="Label" parent="MarginContainer/RootStack/Content/PlaceholderStack"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "雷达界面占位"
+horizontal_alignment = 1
+
+[node name="PlaceholderText" type="Label" parent="MarginContainer/RootStack/Content/PlaceholderStack"]
+layout_mode = 2
+text = "后续阶段接入附近精灵刷新、距离提示与捕捉入口。"
+horizontal_alignment = 1
+autowrap_mode = 3

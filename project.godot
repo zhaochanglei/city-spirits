@@ -10,10 +10,16 @@ config_version=5
 
 [application]
 
-config/name="city-spirits"
-run/main_scene="uid://dtknwwt6q0f5o"
+config/name="City Spirits"
+run/main_scene="res://scenes/main_menu/MainMenu.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
+
+[autoload]
+
+Constants="*res://scripts/core/Constants.gd"
+EventBus="*res://scripts/core/EventBus.gd"
+GameState="*res://scripts/core/GameState.gd"
 
 [physics]
 
