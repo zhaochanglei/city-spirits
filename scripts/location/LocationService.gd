@@ -43,6 +43,7 @@ var android_origin_latitude := 0.0
 var android_origin_longitude := 0.0
 var has_android_origin := false
 var android_runtime: Object
+var android_runtime_for_tests: Object
 var android_context: Object
 var android_location_manager: Object
 var android_poll_elapsed := 0.0
@@ -75,6 +76,22 @@ func start() -> void:
 
 func set_runtime_mode_for_tests(mode: String) -> void:
 	test_runtime_mode = mode
+
+
+func set_android_runtime_override(runtime: Object) -> void:
+	android_runtime_for_tests = runtime
+
+
+func refresh_android_location_manager() -> void:
+	_setup_android_location_manager()
+
+
+func has_android_location_manager() -> bool:
+	return android_location_manager != null
+
+
+func poll_android_location_now() -> void:
+	_poll_android_location()
 
 
 func get_runtime_mode() -> String:
@@ -263,14 +280,17 @@ func _on_request_permissions_result(permission: String, granted: bool) -> void:
 
 
 func _setup_android_location_manager() -> void:
-	if not Engine.has_singleton("AndroidRuntime"):
+	if android_runtime_for_tests != null:
+		android_runtime = android_runtime_for_tests
+	elif Engine.has_singleton("AndroidRuntime"):
+		android_runtime = Engine.get_singleton("AndroidRuntime")
+	else:
 		_set_status(
 			STATUS_PROVIDER_UNAVAILABLE,
 			"AndroidRuntime 不可用，无法读取真实定位。"
 		)
 		return
 
-	android_runtime = Engine.get_singleton("AndroidRuntime")
 	if android_runtime == null:
 		_set_status(
 			STATUS_PROVIDER_UNAVAILABLE,
@@ -278,13 +298,14 @@ func _setup_android_location_manager() -> void:
 		)
 		return
 
-	if android_runtime.has_method("getApplicationContext"):
+	android_context = android_runtime.getActivity()
+	if android_context == null:
 		android_context = android_runtime.getApplicationContext()
 
 	if android_context == null:
 		_set_status(
 			STATUS_PROVIDER_UNAVAILABLE,
-			"Android 上下文不可用，无法读取真实定位。"
+			"Android 上下文不可用：getActivity() 和 getApplicationContext() 都为空。"
 		)
 		return
 
@@ -351,9 +372,9 @@ func _get_last_known_android_location(provider: String) -> Dictionary:
 	if location == null:
 		return {}
 
-	var accuracy := 9999.0
-	if location.has_method("hasAccuracy") and location.hasAccuracy():
-		accuracy = float(location.getAccuracy())
+	var accuracy := float(location.getAccuracy())
+	if accuracy <= 0.0:
+		accuracy = 9999.0
 
 	return {
 		"latitude": float(location.getLatitude()),
