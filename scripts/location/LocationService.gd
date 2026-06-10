@@ -74,9 +74,6 @@ func _process(delta: float) -> void:
 	if runtime_mode != MODE_ANDROID:
 		return
 
-	if android_plugin_live_location_received:
-		return
-
 	android_poll_elapsed += delta
 	if android_poll_elapsed < android_poll_interval_seconds:
 		return
@@ -602,10 +599,6 @@ func _poll_android_location() -> void:
 				_set_status(STATUS_REQUESTING_PERMISSION, "正在等待前台定位权限授权。")
 			return
 
-	if android_plugin_live_location_received and has_position:
-		_debug_log("skip_fallback_poll plugin live updates already active")
-		return
-
 	if android_location_manager == null:
 		_setup_android_location_manager()
 		if android_location_manager == null:
@@ -614,7 +607,17 @@ func _poll_android_location() -> void:
 	var location := _get_best_last_known_android_location()
 	if location.is_empty():
 		_debug_log("fallback_last_known_location empty")
+		if has_position:
+			return
 		_set_status(STATUS_WAITING_FOR_FIX, "暂时没有定位结果，请保持 GPS 可用。")
+		return
+	if _is_stale_polled_android_location(location):
+		_debug_log(
+			"skip_stale_fallback_poll time=%d current_time=%d" % [
+				int(location.get("time_millis", 0)),
+				int(status.get("time_millis", 0))
+			]
+		)
 		return
 
 	_debug_log(
@@ -676,6 +679,18 @@ func _get_best_last_known_android_location() -> Dictionary:
 		return gps_location
 	_debug_log("select_last_known network_better_accuracy")
 	return network_location
+
+
+func _is_stale_polled_android_location(location: Dictionary) -> bool:
+	if not has_position:
+		return false
+
+	var next_time_millis := int(location.get("time_millis", 0))
+	var current_time_millis := int(status.get("time_millis", 0))
+	if next_time_millis <= 0 or current_time_millis <= 0:
+		return false
+
+	return next_time_millis <= current_time_millis
 
 
 func _get_last_known_android_location(provider: String) -> Dictionary:

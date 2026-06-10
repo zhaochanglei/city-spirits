@@ -90,6 +90,8 @@ func _run_tests() -> void:
 	_test_android_prefers_fresher_location_over_stale_network_cache(location_service_script)
 	_test_android_prefers_acceptable_gps_over_network_cache(location_service_script)
 	_test_android_plugin_location_updates(location_service_script)
+	_test_android_fallback_poll_updates_after_plugin_live_location(location_service_script)
+	_test_android_fallback_poll_ignores_stale_location_after_plugin_live_location(location_service_script)
 
 
 func _load_script(path: String) -> Script:
@@ -328,6 +330,77 @@ func _test_android_plugin_location_updates(location_service_script: Script) -> v
 	_assert(
 		diagnostics.get("last_plugin_location", {}).get("provider", "") == "gps",
 		"Diagnostics preserve the latest Android plugin location"
+	)
+
+	service.free()
+
+
+func _test_android_fallback_poll_updates_after_plugin_live_location(location_service_script: Script) -> void:
+	var plugin := FakeAndroidLocationPlugin.new()
+	var runtime := FakeAndroidRuntime.new()
+	var service: Node = location_service_script.new()
+	root.add_child(service)
+	service.set_runtime_mode_for_tests("android")
+	service.set_android_location_plugin_override(plugin)
+	service.set_android_runtime_override(runtime)
+	service.start()
+	service.apply_android_permission_result(true)
+
+	plugin.location_update.emit(31.0, 121.0, 18.0, "gps", 10000)
+
+	var fresher_gps_location := FakeJavaBridgeLocation.new()
+	fresher_gps_location.latitude = 31.00045
+	fresher_gps_location.longitude = 121.0
+	fresher_gps_location.accuracy = 18.0
+	fresher_gps_location.time_millis = 30000
+	runtime.activity.location_manager.locations["gps"] = fresher_gps_location
+
+	service.refresh_android_location_manager()
+	service.poll_android_location_now()
+
+	_assert(
+		service.get_current_position().y < -40.0,
+		"Fallback polling continues to refresh movement after plugin live location starts"
+	)
+	_assert(
+		service.get_status().get("location_source", "") == "last_known",
+		"Newer fallback location becomes the latest Android location source"
+	)
+
+	service.free()
+
+
+func _test_android_fallback_poll_ignores_stale_location_after_plugin_live_location(location_service_script: Script) -> void:
+	var plugin := FakeAndroidLocationPlugin.new()
+	var runtime := FakeAndroidRuntime.new()
+	var service: Node = location_service_script.new()
+	root.add_child(service)
+	service.set_runtime_mode_for_tests("android")
+	service.set_android_location_plugin_override(plugin)
+	service.set_android_runtime_override(runtime)
+	service.start()
+	service.apply_android_permission_result(true)
+
+	plugin.location_update.emit(31.0, 121.0, 18.0, "gps", 10000)
+	plugin.location_update.emit(31.00045, 121.0, 18.0, "gps", 30000)
+
+	var stale_gps_location := FakeJavaBridgeLocation.new()
+	stale_gps_location.latitude = 31.0
+	stale_gps_location.longitude = 121.0
+	stale_gps_location.accuracy = 18.0
+	stale_gps_location.time_millis = 10000
+	runtime.activity.location_manager.locations["gps"] = stale_gps_location
+
+	service.refresh_android_location_manager()
+	service.poll_android_location_now()
+
+	_assert(
+		service.get_current_position().y < -40.0,
+		"Stale fallback polling does not move the player back after newer plugin location"
+	)
+	_assert(
+		service.get_status().get("location_source", "") == "plugin",
+		"Stale fallback polling keeps the newer plugin location source"
 	)
 
 	service.free()

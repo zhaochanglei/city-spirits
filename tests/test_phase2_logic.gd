@@ -20,6 +20,7 @@ func _run_tests() -> void:
 	var location_script := _load_script("res://scripts/location/MockLocationService.gd")
 	var database_script := _load_script("res://scripts/monsters/MonsterDatabase.gd")
 	var spawner_script := _load_script("res://scripts/monsters/MonsterSpawner.gd")
+	var radar_math_script := _load_script("res://scripts/radar/RadarUiMath.gd")
 
 	if not failures.is_empty():
 		return
@@ -27,6 +28,7 @@ func _run_tests() -> void:
 	_test_mock_location_service(location_script)
 	_test_monster_database(database_script)
 	_test_monster_spawner(database_script, spawner_script)
+	_test_radar_heading_helpers(radar_math_script)
 
 
 func _load_script(path: String) -> Script:
@@ -96,6 +98,31 @@ func _test_monster_spawner(database_script: Script, spawner_script: Script) -> v
 	var distance: float = spawner.get_distance_meters(first, Vector2.ZERO)
 	_assert(distance > 0.0, "Spawner reports positive monster distance")
 	database.free()
+
+
+func _test_radar_heading_helpers(radar_math_script: Script) -> void:
+	var radar_math: Object = radar_math_script.new()
+
+	_assert(
+		radar_math.has_method("get_heading_from_motion"),
+		"Radar UI math exposes movement heading helper"
+	)
+	_assert(
+		radar_math.has_method("get_arrow_rotation_for_heading"),
+		"Radar UI math exposes arrow rotation helper"
+	)
+	if not radar_math.has_method("get_heading_from_motion") or not radar_math.has_method("get_arrow_rotation_for_heading"):
+		return
+
+	var fallback_heading := Vector2.UP
+	var east_heading: Vector2 = radar_math.get_heading_from_motion(Vector2.ZERO, Vector2(10.0, 0.0), fallback_heading)
+	_assert(east_heading.is_equal_approx(Vector2.RIGHT), "Radar heading follows eastward movement")
+
+	var unchanged_heading: Vector2 = radar_math.get_heading_from_motion(Vector2.ZERO, Vector2(0.1, 0.1), fallback_heading)
+	_assert(unchanged_heading.is_equal_approx(Vector2.UP), "Radar heading keeps fallback for tiny GPS jitter")
+
+	var east_rotation: float = radar_math.get_arrow_rotation_for_heading(Vector2.RIGHT)
+	_assert(absf(east_rotation - (PI * 0.5)) < 0.001, "Radar arrow rotates toward eastward movement")
 
 
 func _assert(condition: bool, message: String) -> void:

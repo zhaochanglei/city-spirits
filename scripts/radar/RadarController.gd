@@ -1,21 +1,33 @@
 extends Control
 
-const MONSTER_BUTTON_SIZE := Vector2(42.0, 42.0)
-const PLAYER_DOT_SIZE := Vector2(18.0, 18.0)
+const MONSTER_BUTTON_SIZE := Vector2(84.0, 84.0)
+const RADAR_FONT_SCALE := 2.0
+const RADAR_DEFAULT_FONT_SIZE := 32
 const LocationServiceScript := preload("res://scripts/location/LocationService.gd")
+const RadarUiMathScript := preload("res://scripts/radar/RadarUiMath.gd")
 const MonsterDatabaseScript := preload("res://scripts/monsters/MonsterDatabase.gd")
 const MonsterSpawnerScript := preload("res://scripts/monsters/MonsterSpawner.gd")
 
 var location_service: Node
 var monster_database: Node
+var radar_ui_math: RefCounted = RadarUiMathScript.new()
 var monster_spawner: RefCounted = MonsterSpawnerScript.new()
 var spawned_monsters: Array[Dictionary] = []
 var diagnostics_refresh_elapsed := 0.0
+var has_last_player_position := false
+var last_player_position := Vector2.ZERO
+var player_heading := Vector2.UP
+var player_arrow_polygon := PackedVector2Array([
+	Vector2(0.0, -28.0),
+	Vector2(18.0, 22.0),
+	Vector2(0.0, 10.0),
+	Vector2(-18.0, 22.0)
+])
 
 @onready var back_button: Button = %BackButton
 @onready var radar_area: Control = %RadarArea
 @onready var monster_layer: Control = %MonsterLayer
-@onready var player_dot: ColorRect = %PlayerDot
+@onready var player_arrow: Polygon2D = %PlayerDot
 @onready var position_label: Label = %PositionLabel
 @onready var status_label: Label = %StatusLabel
 @onready var diagnostics_label: Label = %DiagnosticsLabel
@@ -28,6 +40,7 @@ var diagnostics_refresh_elapsed := 0.0
 
 func _ready() -> void:
 	GameState.set_current_scene(Constants.SCENE_RADAR)
+	_apply_radar_font_scale(self)
 
 	location_service = LocationServiceScript.new()
 	monster_database = MonsterDatabaseScript.new()
@@ -41,6 +54,8 @@ func _ready() -> void:
 	right_button.pressed.connect(_move_right)
 	location_service.location_changed.connect(_on_location_changed)
 	location_service.status_changed.connect(_on_location_status_changed)
+	player_arrow.polygon = player_arrow_polygon
+	player_arrow.color = Color(0.956863, 0.894118, 0.45098, 1)
 	location_service.start()
 	move_grid.visible = location_service.is_simulation_available()
 	_update_diagnostics_panel()
@@ -75,6 +90,7 @@ func _process(delta: float) -> void:
 
 	diagnostics_refresh_elapsed = 0.0
 	_update_diagnostics_panel()
+	_update_radar()
 
 
 func _move_up() -> void:
@@ -100,7 +116,8 @@ func _move_player(delta: Vector2) -> void:
 	location_service.move_by(delta)
 
 
-func _on_location_changed(_position: Vector2) -> void:
+func _on_location_changed(position: Vector2) -> void:
+	_update_player_heading(position)
 	print("[CitySpirits][Radar] location_changed position=%s" % location_service.get_current_position())
 	_update_diagnostics_panel()
 	_update_radar()
@@ -126,8 +143,8 @@ func _update_radar() -> void:
 
 	_update_position_text(player_position)
 
-	player_dot.size = PLAYER_DOT_SIZE
-	player_dot.position = radar_center - (PLAYER_DOT_SIZE * 0.5)
+	player_arrow.position = radar_center
+	player_arrow.rotation = radar_ui_math.get_arrow_rotation_for_heading(player_heading)
 
 	for monster in spawned_monsters:
 		var button := _create_monster_button(monster, player_position, radar_center, pixels_per_meter)
@@ -150,6 +167,7 @@ func _create_monster_button(
 	)
 
 	button.text = "M"
+	button.add_theme_font_size_override("font_size", RADAR_DEFAULT_FONT_SIZE)
 	button.tooltip_text = "%s\nID: %s\n%.1f m" % [
 		monster.get("name", "Unknown"),
 		monster.get("id", ""),
@@ -178,6 +196,37 @@ func _on_back_pressed() -> void:
 	var error := get_tree().change_scene_to_file(Constants.SCENE_MAIN_MENU)
 	if error != OK:
 		push_error("Failed to return to main menu: %s" % error)
+
+
+func _update_player_heading(next_position: Vector2) -> void:
+	if not has_last_player_position:
+		last_player_position = next_position
+		has_last_player_position = true
+		return
+
+	player_heading = radar_ui_math.get_heading_from_motion(
+		last_player_position,
+		next_position,
+		player_heading
+	)
+	last_player_position = next_position
+
+
+func _apply_radar_font_scale(root: Node) -> void:
+	for child in root.get_children():
+		if child is Label or child is Button:
+			_scale_text_control(child as Control)
+		_apply_radar_font_scale(child)
+
+
+func _scale_text_control(control: Control) -> void:
+	var base_font_size := float(control.get_theme_font_size("font_size"))
+	if base_font_size <= 0:
+		base_font_size = RADAR_DEFAULT_FONT_SIZE / RADAR_FONT_SCALE
+	control.add_theme_font_size_override("font_size", int(round(base_font_size * RADAR_FONT_SCALE)))
+
+	if control.custom_minimum_size.x > 0.0 or control.custom_minimum_size.y > 0.0:
+		control.custom_minimum_size *= RADAR_FONT_SCALE
 
 
 func _update_status_text(next_status: Dictionary) -> void:

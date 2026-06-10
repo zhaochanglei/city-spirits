@@ -95,14 +95,17 @@ theme_override_font_sizes/font_size = 14
 text = "Diagnostics"
 autowrap_mode = 3
 
-[node name="RadarHolder" type="CenterContainer" parent="MarginContainer/RootStack"]
+[node name="RadarHolder" type="MarginContainer" parent="MarginContainer/RootStack"]
 layout_mode = 2
+size_flags_horizontal = 3
 size_flags_vertical = 3
 
 [node name="RadarArea" type="Control" parent="MarginContainer/RootStack/RadarHolder"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(360, 360)
 layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
 
 [node name="RadarBackground" type="ColorRect" parent="MarginContainer/RootStack/RadarHolder/RadarArea"]
 layout_mode = 1
@@ -135,11 +138,9 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="PlayerDot" type="ColorRect" parent="MarginContainer/RootStack/RadarHolder/RadarArea"]
+[node name="PlayerDot" type="Polygon2D" parent="MarginContainer/RootStack/RadarHolder/RadarArea"]
 unique_name_in_owner = true
-layout_mode = 0
-offset_right = 18.0
-offset_bottom = 18.0
+polygon = PackedVector2Array(0, -28, 18, 22, 0, 10, -18, 22)
 color = Color(0.956863, 0.894118, 0.45098, 1)
 
 [node name="ControlPanel" type="VBoxContainer" parent="MarginContainer/RootStack"]
