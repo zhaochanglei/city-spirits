@@ -1,6 +1,18 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/radar/RadarController.gd" id="1_radar"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_diag"]
+bg_color = Color(0.0627451, 0.12549, 0.145098, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.192157, 0.313726, 0.341176, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [node name="RadarScene" type="Control"]
 layout_mode = 3
@@ -61,6 +73,27 @@ layout_mode = 2
 text = "正在扫描"
 horizontal_alignment = 2
 vertical_alignment = 1
+
+[node name="DiagnosticsPanel" type="PanelContainer" parent="MarginContainer/RootStack"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_diag")
+
+[node name="DiagnosticsMargin" type="MarginContainer" parent="MarginContainer/RootStack/DiagnosticsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="DiagnosticsLabel" type="Label" parent="MarginContainer/RootStack/DiagnosticsPanel/DiagnosticsMargin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 156)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 14
+text = "Diagnostics"
+autowrap_mode = 3
 
 [node name="RadarHolder" type="CenterContainer" parent="MarginContainer/RootStack"]
 layout_mode = 2

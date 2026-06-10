@@ -1,3 +1,26 @@
 # Godot 4+ specific ignores
 .godot/
-/android/
+.gradle-home/
+third_party/gradle/*.zip
+*.apk
+
+# Android Gradle export/generated artifacts
+android/.build_version
+android/.gradle/
+android/.kotlin/
+android/assetPackInstallTime/
+android/build.gradle
+android/build/.gradle/
+android/build/.kotlin/
+android/build/build/
+android/build/libs/
+android/build/src/main/assets/
+android/config.gradle
+android/gradle.properties
+android/gradle/
+android/gradlew
+android/gradlew.bat
+android/libs/
+android/res/
+android/settings.gradle
+android/src/

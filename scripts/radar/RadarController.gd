@@ -10,6 +10,7 @@ var location_service: Node
 var monster_database: Node
 var monster_spawner: RefCounted = MonsterSpawnerScript.new()
 var spawned_monsters: Array[Dictionary] = []
+var diagnostics_refresh_elapsed := 0.0
 
 @onready var back_button: Button = %BackButton
 @onready var radar_area: Control = %RadarArea
@@ -17,6 +18,7 @@ var spawned_monsters: Array[Dictionary] = []
 @onready var player_dot: ColorRect = %PlayerDot
 @onready var position_label: Label = %PositionLabel
 @onready var status_label: Label = %StatusLabel
+@onready var diagnostics_label: Label = %DiagnosticsLabel
 @onready var move_grid: GridContainer = %MoveGrid
 @onready var up_button: Button = %UpButton
 @onready var down_button: Button = %DownButton
@@ -41,6 +43,7 @@ func _ready() -> void:
 	location_service.status_changed.connect(_on_location_status_changed)
 	location_service.start()
 	move_grid.visible = location_service.is_simulation_available()
+	_update_diagnostics_panel()
 
 	if not monster_database.load_from_file(Constants.MONSTER_DATA_PATH):
 		status_label.text = "怪物数据加载失败"
@@ -57,6 +60,21 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED and is_node_ready():
 		call_deferred("_update_radar")
+
+
+func _process(delta: float) -> void:
+	if location_service == null:
+		return
+
+	if location_service.get_runtime_mode() != "android":
+		return
+
+	diagnostics_refresh_elapsed += delta
+	if diagnostics_refresh_elapsed < 0.5:
+		return
+
+	diagnostics_refresh_elapsed = 0.0
+	_update_diagnostics_panel()
 
 
 func _move_up() -> void:
@@ -83,11 +101,15 @@ func _move_player(delta: Vector2) -> void:
 
 
 func _on_location_changed(_position: Vector2) -> void:
+	print("[CitySpirits][Radar] location_changed position=%s" % location_service.get_current_position())
+	_update_diagnostics_panel()
 	_update_radar()
 
 
 func _on_location_status_changed(next_status: Dictionary) -> void:
+	print("[CitySpirits][Radar] status_changed %s" % next_status)
 	_update_status_text(next_status)
+	_update_diagnostics_panel()
 	_update_radar()
 
 
@@ -164,6 +186,77 @@ func _update_status_text(next_status: Dictionary) -> void:
 		status_message = "发现 %d 个雷达信号" % spawned_monsters.size()
 	status_label.text = status_message
 	status_label.tooltip_text = status_message
+
+
+func _update_diagnostics_panel() -> void:
+	if diagnostics_label == null or location_service == null:
+		return
+
+	if not location_service.has_method("get_diagnostics"):
+		diagnostics_label.text = "Diagnostics unavailable"
+		return
+
+	var diagnostics: Dictionary = location_service.get_diagnostics()
+	var lines: Array[String] = [
+		"mode=%s | status=%s | plugin_available=%s | live_received=%s" % [
+			diagnostics.get("runtime_mode", ""),
+			diagnostics.get("status_code", ""),
+			diagnostics.get("plugin_available", false),
+			diagnostics.get("plugin_live_location_received", false)
+		],
+		"updates_started=%s | plugin_update_count=%s | fallback_poll_count=%s | source=%s" % [
+			diagnostics.get("plugin_updates_started", false),
+			diagnostics.get("plugin_update_count", 0),
+			diagnostics.get("fallback_poll_count", 0),
+			diagnostics.get("last_location_source", "")
+		],
+		"provider=%s | accuracy=%.1f | lat=%.6f | lon=%.6f | time=%s" % [
+			diagnostics.get("last_provider", ""),
+			float(diagnostics.get("last_accuracy_meters", 0.0)),
+			float(diagnostics.get("last_latitude", 0.0)),
+			float(diagnostics.get("last_longitude", 0.0)),
+			str(diagnostics.get("last_time_millis", 0))
+		],
+		"origin_lat=%.6f | origin_lon=%.6f | rel_x=%.2f | rel_y=%.2f" % [
+			float(diagnostics.get("origin_latitude", 0.0)),
+			float(diagnostics.get("origin_longitude", 0.0)),
+			float(diagnostics.get("relative_x", 0.0)),
+			float(diagnostics.get("relative_y", 0.0))
+		],
+		_format_diagnostics_location_line("plugin", diagnostics.get("last_plugin_location", {})),
+		_format_diagnostics_location_line("selected_last_known", diagnostics.get("last_selected_last_known_location", {})),
+		_format_diagnostics_location_line("last_known_gps", diagnostics.get("last_known_gps", {})),
+		_format_diagnostics_location_line("last_known_network", diagnostics.get("last_known_network", {}))
+	]
+
+	var plugin_status: Dictionary = diagnostics.get("last_plugin_status", {})
+	if diagnostics.get("runtime_mode", "") == "android" and not bool(diagnostics.get("plugin_available", false)):
+		lines.append("hint: native location plugin missing from APK; rebuild Android export with Gradle source template")
+	lines.append(
+		"plugin_status code=%s | provider=%s | message=%s" % [
+			plugin_status.get("code", ""),
+			plugin_status.get("provider", ""),
+			plugin_status.get("message", "")
+		]
+	)
+
+	diagnostics_label.text = "\n".join(lines)
+	diagnostics_label.tooltip_text = diagnostics_label.text
+
+
+func _format_diagnostics_location_line(label: String, data: Dictionary) -> String:
+	if data.is_empty():
+		return "%s: none" % label
+
+	return "%s: provider=%s acc=%.1f lat=%.6f lon=%.6f time=%s age_ms=%s" % [
+		label,
+		data.get("provider", ""),
+		float(data.get("accuracy_meters", 0.0)),
+		float(data.get("latitude", 0.0)),
+		float(data.get("longitude", 0.0)),
+		str(data.get("time_millis", 0)),
+		str(data.get("age_millis", -1))
+	]
 
 
 func _update_position_text(player_position: Vector2) -> void:
