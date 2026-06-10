@@ -13,6 +13,7 @@ var monster_database: Node
 var radar_ui_math: RefCounted = RadarUiMathScript.new()
 var monster_spawner: RefCounted = MonsterSpawnerScript.new()
 var spawned_monsters: Array[Dictionary] = []
+var monster_buttons: Array[Button] = []
 var diagnostics_refresh_elapsed := 0.0
 var has_last_player_position := false
 var last_player_position := Vector2.ZERO
@@ -85,12 +86,12 @@ func _process(delta: float) -> void:
 		return
 
 	diagnostics_refresh_elapsed += delta
+	_update_radar_positions()
 	if diagnostics_refresh_elapsed < 0.5:
 		return
 
 	diagnostics_refresh_elapsed = 0.0
 	_update_diagnostics_panel()
-	_update_radar()
 
 
 func _move_up() -> void:
@@ -127,17 +128,35 @@ func _on_location_status_changed(next_status: Dictionary) -> void:
 	print("[CitySpirits][Radar] status_changed %s" % next_status)
 	_update_status_text(next_status)
 	_update_diagnostics_panel()
-	_update_radar()
 
 
 func _update_radar() -> void:
 	if radar_area == null or monster_layer == null:
 		return
 
+	_ensure_monster_buttons()
+	_update_radar_positions()
+
+
+func _ensure_monster_buttons() -> void:
+	if monster_buttons.size() == spawned_monsters.size():
+		return
+
 	for child in monster_layer.get_children():
 		child.queue_free()
+	monster_buttons.clear()
 
-	var player_position: Vector2 = location_service.get_current_position()
+	for monster in spawned_monsters:
+		var button := _create_monster_button(monster)
+		monster_layer.add_child(button)
+		monster_buttons.append(button)
+
+
+func _update_radar_positions() -> void:
+	if radar_area == null or monster_layer == null:
+		return
+
+	var player_position := _get_radar_player_position()
 	var radar_center := _get_radar_center()
 	var pixels_per_meter := _get_pixels_per_meter()
 
@@ -146,18 +165,34 @@ func _update_radar() -> void:
 	player_arrow.position = radar_center
 	player_arrow.rotation = radar_ui_math.get_arrow_rotation_for_heading(player_heading)
 
-	for monster in spawned_monsters:
-		var button := _create_monster_button(monster, player_position, radar_center, pixels_per_meter)
-		monster_layer.add_child(button)
+	var count := mini(monster_buttons.size(), spawned_monsters.size())
+	for index in range(count):
+		_update_monster_button(
+			monster_buttons[index],
+			spawned_monsters[index],
+			player_position,
+			radar_center,
+			pixels_per_meter
+		)
 
 
-func _create_monster_button(
+func _create_monster_button(monster: Dictionary) -> Button:
+	var button := Button.new()
+	button.text = "M"
+	button.add_theme_font_size_override("font_size", RADAR_DEFAULT_FONT_SIZE)
+	button.custom_minimum_size = MONSTER_BUTTON_SIZE
+	button.size = MONSTER_BUTTON_SIZE
+	button.pressed.connect(_on_monster_pressed.bind(monster))
+	return button
+
+
+func _update_monster_button(
+	button: Button,
 	monster: Dictionary,
 	player_position: Vector2,
 	radar_center: Vector2,
 	pixels_per_meter: float
-) -> Button:
-	var button := Button.new()
+) -> void:
 	var distance: float = monster_spawner.get_distance_meters(monster, player_position)
 	var screen_position: Vector2 = monster_spawner.get_radar_position(
 		monster,
@@ -166,18 +201,12 @@ func _create_monster_button(
 		pixels_per_meter
 	)
 
-	button.text = "M"
-	button.add_theme_font_size_override("font_size", RADAR_DEFAULT_FONT_SIZE)
 	button.tooltip_text = "%s\nID: %s\n%.1f m" % [
 		monster.get("name", "Unknown"),
 		monster.get("id", ""),
 		distance
 	]
-	button.custom_minimum_size = MONSTER_BUTTON_SIZE
-	button.size = MONSTER_BUTTON_SIZE
 	button.position = screen_position - (MONSTER_BUTTON_SIZE * 0.5)
-	button.pressed.connect(_on_monster_pressed.bind(monster))
-	return button
 
 
 func _on_monster_pressed(monster: Dictionary) -> void:
@@ -323,6 +352,16 @@ func _update_position_text(player_position: Vector2) -> void:
 		player_position.x,
 		player_position.y
 	]
+
+
+func _get_radar_player_position() -> Vector2:
+	if location_service == null:
+		return Vector2.ZERO
+
+	if location_service != null and location_service.has_method("get_display_position"):
+		return location_service.get_display_position()
+
+	return location_service.get_current_position()
 
 
 func _get_radar_center() -> Vector2:

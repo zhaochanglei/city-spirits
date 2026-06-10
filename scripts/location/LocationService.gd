@@ -17,21 +17,32 @@ const STATUS_PROVIDER_UNAVAILABLE := "provider_unavailable"
 const STATUS_WAITING_FOR_FIX := "waiting_for_fix"
 const STATUS_LOW_ACCURACY := "low_accuracy"
 const STATUS_LOCATION_READY := "location_ready"
+const STATUS_STALE_LOCATION := "stale_location"
 
 const PERMISSION_FINE_LOCATION := "android.permission.ACCESS_FINE_LOCATION"
 const PERMISSION_COARSE_LOCATION := "android.permission.ACCESS_COARSE_LOCATION"
 const LOCATION_SERVICE_NAME := "location"
 const GPS_PROVIDER := "gps"
 const NETWORK_PROVIDER := "network"
+const LOCATION_SOURCE_LAST_KNOWN := "last_known"
+const LOCATION_SOURCE_LIVE := "live"
 const EARTH_RADIUS_METERS := 6378137.0
 const LOCATION_FRESHNESS_PRIORITY_WINDOW_MILLIS := 15000
+const LOCATION_SOFT_STALE_MILLIS := 5000
+const LOCATION_HARD_STALE_MILLIS := 10000
+const ANDROID_LOCATION_UPDATE_MIN_TIME_MILLIS := 1000
+const ANDROID_LOCATION_UPDATE_MIN_DISTANCE_METERS := 0.5
+const DISPLAY_SMOOTHING_SPEED := 8.0
+const DISPLAY_SNAP_DISTANCE_METERS := 0.05
 const DEBUG_TAG := "[CitySpirits][LocationService]"
 
-@export var min_accuracy_meters := 75.0
-@export var android_poll_interval_seconds := 3.0
+@export var min_accuracy_meters := 30.0
+@export var android_poll_interval_seconds := 1.0
 
 var runtime_mode := ""
 var current_position := Vector2.ZERO
+var target_position := Vector2.ZERO
+var display_position := Vector2.ZERO
 var has_position := false
 var status := {
 	"code": "",
@@ -71,6 +82,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_display_position(delta)
+
 	if runtime_mode != MODE_ANDROID:
 		return
 
@@ -131,6 +144,14 @@ func get_current_position() -> Vector2:
 	return current_position
 
 
+func get_target_position() -> Vector2:
+	return target_position
+
+
+func get_display_position() -> Vector2:
+	return display_position
+
+
 func has_current_position() -> bool:
 	return has_position
 
@@ -161,8 +182,10 @@ func get_diagnostics() -> Dictionary:
 		"last_time_millis": int(status.get("time_millis", 0)),
 		"origin_latitude": android_origin_latitude,
 		"origin_longitude": android_origin_longitude,
-		"relative_x": current_position.x,
-		"relative_y": current_position.y,
+		"relative_x": target_position.x,
+		"relative_y": target_position.y,
+		"display_x": display_position.x,
+		"display_y": display_position.y,
 		"last_plugin_location": _get_fresh_location_snapshot(android_last_plugin_location),
 		"last_selected_last_known_location": _get_fresh_location_snapshot(android_last_selected_last_known_location),
 		"last_known_gps": _get_fresh_location_snapshot(android_last_known_locations.get(GPS_PROVIDER, {})),
@@ -203,15 +226,19 @@ func _build_location_snapshot(
 	longitude: float,
 	accuracy_meters: float,
 	provider: String,
-	time_millis: int
+	time_millis: int,
+	source: String = ""
 ) -> Dictionary:
-	return {
+	var snapshot := {
 		"provider": provider,
 		"latitude": latitude,
 		"longitude": longitude,
 		"accuracy_meters": accuracy_meters,
 		"time_millis": time_millis
 	}
+	if not source.is_empty():
+		snapshot["source"] = source
+	return snapshot
 
 
 func _get_fresh_location_snapshot(snapshot: Dictionary) -> Dictionary:
@@ -253,11 +280,12 @@ func ingest_android_location(
 	accuracy_meters: float,
 	provider: String = GPS_PROVIDER,
 	time_millis: int = 0,
-	location_source: String = ""
+	location_source: String = LOCATION_SOURCE_LIVE
 ) -> bool:
+	var normalized_source := _normalize_location_source(location_source)
 	_debug_log(
 		"ingest_android_location source=%s provider=%s lat=%.6f lon=%.6f acc=%.1f time=%d origin_set=%s" % [
-			location_source,
+			normalized_source,
 			provider,
 			latitude,
 			longitude,
@@ -284,7 +312,37 @@ func ingest_android_location(
 				"accuracy_meters": accuracy_meters,
 				"provider": provider,
 				"time_millis": time_millis,
-				"location_source": location_source
+				"location_source": normalized_source
+			}
+		)
+		return false
+
+	var freshness_result := _validate_android_location_freshness(
+		latitude,
+		longitude,
+		accuracy_meters,
+		provider,
+		time_millis,
+		normalized_source
+	)
+	if not bool(freshness_result.get("accepted", false)):
+		return false
+
+	if normalized_source == LOCATION_SOURCE_LAST_KNOWN:
+		if has_position:
+			return false
+
+		_set_status(
+			STATUS_WAITING_FOR_FIX,
+			"收到缓存定位，正在等待实时定位。",
+			{
+				"latitude": latitude,
+				"longitude": longitude,
+				"accuracy_meters": accuracy_meters,
+				"provider": provider,
+				"time_millis": time_millis,
+				"location_source": normalized_source,
+				"age_millis": int(freshness_result.get("age_millis", 0))
 			}
 		)
 		return false
@@ -295,18 +353,21 @@ func ingest_android_location(
 		has_android_origin = true
 		_debug_log("set_android_origin lat=%.6f lon=%.6f" % [latitude, longitude])
 
-	current_position = lat_lon_to_local_meters(
+	target_position = lat_lon_to_local_meters(
 		latitude,
 		longitude,
 		android_origin_latitude,
 		android_origin_longitude
 	)
+	current_position = target_position
+	if not has_position:
+		display_position = target_position
 	has_position = true
 	_debug_log(
 		"accepted_android_location provider=%s relative_x=%.2f relative_y=%.2f" % [
 			provider,
-			current_position.x,
-			current_position.y
+			target_position.x,
+			target_position.y
 		]
 	)
 	_set_status(
@@ -318,11 +379,102 @@ func ingest_android_location(
 			"accuracy_meters": accuracy_meters,
 			"provider": provider,
 			"time_millis": time_millis,
-			"location_source": location_source
+			"location_source": normalized_source,
+			"age_millis": int(freshness_result.get("age_millis", 0))
 		}
 	)
-	location_changed.emit(current_position)
+	location_changed.emit(display_position)
 	return true
+
+
+func _normalize_location_source(location_source: String) -> String:
+	if location_source == LOCATION_SOURCE_LAST_KNOWN:
+		return LOCATION_SOURCE_LAST_KNOWN
+	if location_source == LOCATION_SOURCE_LIVE or location_source == "plugin" or location_source.is_empty():
+		return LOCATION_SOURCE_LIVE
+
+	return location_source
+
+
+func _validate_android_location_freshness(
+	latitude: float,
+	longitude: float,
+	accuracy_meters: float,
+	provider: String,
+	time_millis: int,
+	location_source: String
+) -> Dictionary:
+	var age_millis := 0
+	if time_millis > 0:
+		age_millis = _get_now_millis() - time_millis
+
+	if time_millis > 0 and age_millis > LOCATION_HARD_STALE_MILLIS:
+		_debug_log(
+			"reject_hard_stale source=%s provider=%s age=%dms threshold=%dms" % [
+				location_source,
+				provider,
+				age_millis,
+				LOCATION_HARD_STALE_MILLIS
+			]
+		)
+		return {
+			"accepted": false,
+			"age_millis": age_millis
+		}
+
+	if time_millis > 0 and age_millis > LOCATION_SOFT_STALE_MILLIS:
+		if location_source == LOCATION_SOURCE_LAST_KNOWN and has_position:
+			return {
+				"accepted": false,
+				"age_millis": age_millis
+			}
+
+		_debug_log(
+			"reject_stale source=%s provider=%s age=%dms threshold=%dms" % [
+				location_source,
+				provider,
+				age_millis,
+				LOCATION_SOFT_STALE_MILLIS
+			]
+		)
+		_set_status(
+			STATUS_STALE_LOCATION,
+			"定位结果过旧：%.1f 秒，正在等待实时定位。" % (float(age_millis) / 1000.0),
+			{
+				"latitude": latitude,
+				"longitude": longitude,
+				"accuracy_meters": accuracy_meters,
+				"provider": provider,
+				"time_millis": time_millis,
+				"location_source": location_source,
+				"age_millis": age_millis
+			}
+		)
+		return {
+			"accepted": false,
+			"age_millis": age_millis
+		}
+
+	return {
+		"accepted": true,
+		"age_millis": age_millis
+	}
+
+
+func _update_display_position(delta: float) -> void:
+	if not has_position:
+		return
+
+	var previous_display_position := display_position
+	var distance_to_target := display_position.distance_to(target_position)
+	if distance_to_target <= DISPLAY_SNAP_DISTANCE_METERS:
+		display_position = target_position
+	else:
+		var smoothing_weight := clampf(delta * DISPLAY_SMOOTHING_SPEED, 0.0, 1.0)
+		display_position = display_position.lerp(target_position, smoothing_weight)
+
+	if previous_display_position.distance_to(display_position) > 0.001:
+		location_changed.emit(display_position)
 
 
 func lat_lon_to_local_meters(
@@ -358,9 +510,11 @@ func _start_mock_mode() -> void:
 	add_child(mock_service)
 	mock_service.location_changed.connect(_on_mock_location_changed)
 	current_position = mock_service.get_current_position()
+	target_position = current_position
+	display_position = current_position
 	has_position = true
 	_set_status(STATUS_MOCK_ACTIVE, "PC / Editor 模拟定位模式。")
-	location_changed.emit(current_position)
+	location_changed.emit(display_position)
 
 
 func _start_android_mode() -> void:
@@ -368,6 +522,8 @@ func _start_android_mode() -> void:
 	_reset_android_diagnostics()
 	has_position = false
 	current_position = Vector2.ZERO
+	target_position = Vector2.ZERO
+	display_position = Vector2.ZERO
 	set_process(true)
 	_debug_log("start_android_mode")
 	_request_android_location_permission()
@@ -406,9 +562,11 @@ func _reset_android_diagnostics() -> void:
 
 func _on_mock_location_changed(position: Vector2) -> void:
 	current_position = position
+	target_position = position
+	display_position = position
 	has_position = true
 	_set_status(STATUS_MOCK_ACTIVE, "PC / Editor 模拟定位模式。")
-	location_changed.emit(current_position)
+	location_changed.emit(display_position)
 
 
 func _request_android_location_permission() -> void:
@@ -475,12 +633,14 @@ func _start_android_location_updates() -> void:
 		return
 
 	android_plugin_live_location_received = false
-	var min_time_millis := maxi(int(android_poll_interval_seconds * 1000.0), 1000)
-	android_plugin_updates_started = bool(android_location_plugin.startLocationUpdates(min_time_millis, 1.0))
+	var min_time_millis := ANDROID_LOCATION_UPDATE_MIN_TIME_MILLIS
+	var min_distance_meters := ANDROID_LOCATION_UPDATE_MIN_DISTANCE_METERS
+	android_plugin_updates_started = bool(android_location_plugin.startLocationUpdates(min_time_millis, min_distance_meters))
 	_debug_log(
-		"start_android_location_updates started=%s min_time_ms=%d" % [
+		"start_android_location_updates started=%s min_time_ms=%d min_distance_m=%.1f" % [
 			android_plugin_updates_started,
-			min_time_millis
+			min_time_millis,
+			min_distance_meters
 		]
 	)
 
@@ -539,19 +699,23 @@ func _on_android_plugin_location_update(
 	longitude: float,
 	accuracy_meters: float,
 	provider: String,
-	time_millis: int
+	time_millis: int,
+	source: String
 ) -> void:
-	android_plugin_live_location_received = true
+	var normalized_source := _normalize_location_source(source)
+	if normalized_source == LOCATION_SOURCE_LIVE:
+		android_plugin_live_location_received = true
 	android_plugin_update_count += 1
 	android_last_plugin_location = _build_location_snapshot(
 		latitude,
 		longitude,
 		accuracy_meters,
 		provider,
-		time_millis
+		time_millis,
+		normalized_source
 	)
-	_debug_log(_format_android_location_debug("plugin_location_update", latitude, longitude, accuracy_meters, provider, time_millis))
-	ingest_android_location(latitude, longitude, accuracy_meters, provider, time_millis, "plugin")
+	_debug_log(_format_android_location_debug("plugin_%s_location_update" % normalized_source, latitude, longitude, accuracy_meters, provider, time_millis))
+	ingest_android_location(latitude, longitude, accuracy_meters, provider, time_millis, normalized_source)
 
 
 func _on_android_plugin_status_changed(code: String, message: String, provider: String = "") -> void:
@@ -635,7 +799,8 @@ func _poll_android_location() -> void:
 		float(location.get("longitude", 0.0)),
 		float(location.get("accuracy_meters", 9999.0)),
 		str(location.get("provider", GPS_PROVIDER)),
-		int(location.get("time_millis", 0))
+		int(location.get("time_millis", 0)),
+		LOCATION_SOURCE_LAST_KNOWN
 	)
 	ingest_android_location(
 		float(location.get("latitude", 0.0)),
@@ -711,7 +876,8 @@ func _get_last_known_android_location(provider: String) -> Dictionary:
 		float(location.getLongitude()),
 		accuracy,
 		provider,
-		time_millis
+		time_millis,
+		LOCATION_SOURCE_LAST_KNOWN
 	)
 	_debug_log(
 		_format_android_location_debug(
@@ -729,7 +895,8 @@ func _get_last_known_android_location(provider: String) -> Dictionary:
 		"longitude": float(location.getLongitude()),
 		"accuracy_meters": accuracy,
 		"provider": provider,
-		"time_millis": time_millis
+		"time_millis": time_millis,
+		"source": LOCATION_SOURCE_LAST_KNOWN
 	}
 
 
@@ -742,7 +909,7 @@ func _set_status(code: String, message: String, extra: Dictionary = {}) -> void:
 		status[key] = extra[key]
 
 	var debug_fields: Array[String] = []
-	for key in ["provider", "accuracy_meters", "latitude", "longitude", "time_millis"]:
+	for key in ["provider", "accuracy_meters", "latitude", "longitude", "time_millis", "location_source", "age_millis"]:
 		if status.has(key):
 			debug_fields.append("%s=%s" % [key, status.get(key)])
 	_debug_log("status code=%s message=%s %s" % [code, message, " ".join(debug_fields)])

@@ -23,6 +23,10 @@ class CitySpiritsLocationPlugin(godot: Godot) : GodotPlugin(godot), LocationList
 		private const val GPS_PROVIDER = "gps"
 		private const val NETWORK_PROVIDER = "network"
 		private const val INVALID_ACCURACY_METERS = 9999.0
+		private const val DEFAULT_MIN_TIME_MILLIS = 1000
+		private const val DEFAULT_MIN_DISTANCE_METERS = 0.5f
+		private const val LOCATION_SOURCE_LAST_KNOWN = "last_known"
+		private const val LOCATION_SOURCE_LIVE = "live"
 
 		private val LOCATION_UPDATE_SIGNAL = SignalInfo(
 			"location_update",
@@ -30,7 +34,8 @@ class CitySpiritsLocationPlugin(godot: Godot) : GodotPlugin(godot), LocationList
 			java.lang.Double::class.java,
 			java.lang.Double::class.java,
 			String::class.java,
-			java.lang.Long::class.java
+			java.lang.Long::class.java,
+			String::class.java
 		)
 		private val LOCATION_STATUS_SIGNAL = SignalInfo(
 			"location_status_changed",
@@ -52,10 +57,15 @@ class CitySpiritsLocationPlugin(godot: Godot) : GodotPlugin(godot), LocationList
 	override fun getPluginSignals() = SIGNALS
 
 	@UsedByGodot
-	fun startLocationUpdates(minTimeMillis: Int, minDistanceMeters: Float): Boolean {
-		Log.d(TAG, "startLocationUpdates requested minTimeMs=$minTimeMillis minDistanceMeters=$minDistanceMeters")
+	fun startLocationUpdates(
+		minTimeMillis: Int = DEFAULT_MIN_TIME_MILLIS,
+		minDistanceMeters: Float = DEFAULT_MIN_DISTANCE_METERS
+	): Boolean {
+		val requestedMinTimeMillis = if (minTimeMillis > 0) minTimeMillis else DEFAULT_MIN_TIME_MILLIS
+		val requestedMinDistanceMeters = if (minDistanceMeters > 0f) minDistanceMeters else DEFAULT_MIN_DISTANCE_METERS
+		Log.d(TAG, "startLocationUpdates requested minTimeMs=$requestedMinTimeMillis minDistanceMeters=$requestedMinDistanceMeters")
 		runOnHostThread {
-			startLocationUpdatesOnHost(minTimeMillis.toLong(), minDistanceMeters)
+			startLocationUpdatesOnHost(requestedMinTimeMillis.toLong(), requestedMinDistanceMeters)
 		}
 		return true
 	}
@@ -70,7 +80,7 @@ class CitySpiritsLocationPlugin(godot: Godot) : GodotPlugin(godot), LocationList
 
 	override fun onLocationChanged(location: Location) {
 		Log.d(TAG, "onLocationChanged ${formatLocation(location)}")
-		emitLocationUpdate(location)
+		emitLocationUpdate(location, LOCATION_SOURCE_LIVE)
 	}
 
 	override fun onProviderEnabled(provider: String) {
@@ -164,7 +174,7 @@ class CitySpiritsLocationPlugin(godot: Godot) : GodotPlugin(godot), LocationList
 			return
 		}
 		Log.d(TAG, "emitLastKnownLocationIfAvailable provider=$provider ${formatLocation(location)}")
-		emitLocationUpdate(location)
+		emitLocationUpdate(location, LOCATION_SOURCE_LAST_KNOWN)
 	}
 
 	private fun stopLocationUpdatesOnHost() {
@@ -205,7 +215,7 @@ class CitySpiritsLocationPlugin(godot: Godot) : GodotPlugin(godot), LocationList
 		return fineLocationGranted || coarseLocationGranted
 	}
 
-	private fun emitLocationUpdate(location: Location) {
+	private fun emitLocationUpdate(location: Location, source: String) {
 		val accuracy = if (location.hasAccuracy()) {
 			location.accuracy.toDouble()
 		} else {
@@ -218,9 +228,10 @@ class CitySpiritsLocationPlugin(godot: Godot) : GodotPlugin(godot), LocationList
 			location.longitude,
 			accuracy,
 			provider,
-			location.time
+			location.time,
+			source
 		)
-		Log.d(TAG, "emitSignal location_update ${formatLocation(location)}")
+		Log.d(TAG, "emitSignal location_update source=$source ${formatLocation(location)}")
 	}
 
 	private fun formatLocation(location: Location): String {

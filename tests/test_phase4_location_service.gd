@@ -48,14 +48,18 @@ class FakeJavaBridgeLocation:
 
 
 class FakeAndroidLocationPlugin:
-	signal location_update(latitude, longitude, accuracy_meters, provider, time_millis)
+	signal location_update(latitude, longitude, accuracy_meters, provider, time_millis, source)
 	signal location_status_changed(code, message, provider)
 
 	var start_called := false
 	var stop_called := false
+	var last_min_time_millis := -1
+	var last_min_distance_meters := -1.0
 
-	func startLocationUpdates(_min_time_millis: int, _min_distance_meters: float) -> bool:
+	func startLocationUpdates(min_time_millis: int, min_distance_meters: float) -> bool:
 		start_called = true
+		last_min_time_millis = min_time_millis
+		last_min_distance_meters = min_distance_meters
 		location_status_changed.emit("updates_started", "Plugin updates started", "gps")
 		return true
 
@@ -90,8 +94,9 @@ func _run_tests() -> void:
 	_test_android_prefers_fresher_location_over_stale_network_cache(location_service_script)
 	_test_android_prefers_acceptable_gps_over_network_cache(location_service_script)
 	_test_android_plugin_location_updates(location_service_script)
-	_test_android_fallback_poll_updates_after_plugin_live_location(location_service_script)
-	_test_android_fallback_poll_ignores_stale_location_after_plugin_live_location(location_service_script)
+	_test_android_last_known_plugin_updates_diagnostics_without_origin(location_service_script)
+	_test_android_stale_live_location_is_rejected(location_service_script)
+	_test_android_fresh_live_location_updates_target_and_smooth_display(location_service_script)
 
 
 func _load_script(path: String) -> Script:
@@ -156,7 +161,9 @@ func _test_android_status_handling(location_service_script: Script) -> void:
 		31.0,
 		121.0,
 		150.0,
-		"gps"
+		"gps",
+		_fresh_time_millis(),
+		"live"
 	)
 	_assert(not accepted_low_accuracy, "Low-accuracy Android location is rejected")
 	_assert(
@@ -168,7 +175,9 @@ func _test_android_status_handling(location_service_script: Script) -> void:
 		31.0,
 		121.0,
 		20.0,
-		"gps"
+		"gps",
+		_fresh_time_millis(),
+		"live"
 	)
 	_assert(accepted_good_location, "Accurate Android location is accepted")
 	_assert(service.has_current_position(), "Accepted Android location marks current position available")
@@ -195,7 +204,9 @@ func _test_android_runtime_activity_context(location_service_script: Script) -> 
 
 func _test_android_location_accuracy_from_bridge(location_service_script: Script) -> void:
 	var runtime := FakeAndroidRuntime.new()
-	runtime.activity.location_manager.locations["gps"] = FakeJavaBridgeLocation.new()
+	var last_known := FakeJavaBridgeLocation.new()
+	last_known.time_millis = _fresh_time_millis()
+	runtime.activity.location_manager.locations["gps"] = last_known
 
 	var service: Node = location_service_script.new()
 	root.add_child(service)
@@ -206,10 +217,10 @@ func _test_android_location_accuracy_from_bridge(location_service_script: Script
 	service.refresh_android_location_manager()
 	service.poll_android_location_now()
 
-	_assert(service.has_current_position(), "Android Java bridge location with getAccuracy() is accepted")
+	_assert(not service.has_current_position(), "Android Java bridge last-known location does not drive radar position")
 	_assert(
-		service.get_status().get("code", "") == "location_ready",
-		"Android Java bridge getAccuracy() avoids the 9999m fallback"
+		service.get_diagnostics().get("last_known_gps", {}).get("accuracy_meters", 0.0) == 18.0,
+		"Android Java bridge getAccuracy() updates last-known diagnostics"
 	)
 
 	service.free()
@@ -221,13 +232,13 @@ func _test_android_prefers_fresher_location_over_stale_network_cache(location_se
 	network_location.latitude = 31.0
 	network_location.longitude = 121.0
 	network_location.accuracy = 25.0
-	network_location.time_millis = 1000
+	network_location.time_millis = _fresh_time_millis(-9000)
 
 	var gps_location := FakeJavaBridgeLocation.new()
 	gps_location.latitude = 31.00018
 	gps_location.longitude = 121.0
-	gps_location.accuracy = 40.0
-	gps_location.time_millis = 20000
+	gps_location.accuracy = 28.0
+	gps_location.time_millis = _fresh_time_millis(-3000)
 
 	runtime.activity.location_manager.locations["network"] = network_location
 	runtime.activity.location_manager.locations["gps"] = gps_location
@@ -242,17 +253,10 @@ func _test_android_prefers_fresher_location_over_stale_network_cache(location_se
 	service.poll_android_location_now()
 
 	var next_gps_location := FakeJavaBridgeLocation.new()
-	next_gps_location.latitude = 31.00036
-	next_gps_location.longitude = 121.0
-	next_gps_location.accuracy = 42.0
-	next_gps_location.time_millis = 40000
-	runtime.activity.location_manager.locations["gps"] = next_gps_location
-	service.poll_android_location_now()
-
-	var current_position: Vector2 = service.get_current_position()
-	_assert(current_position.y < -15.0, "Fresher GPS updates move the Android radar position")
+	var diagnostics: Dictionary = service.get_diagnostics()
+	_assert(not service.has_current_position(), "Fresher last-known GPS does not move the Android radar position")
 	_assert(
-		service.get_status().get("provider", "") == "gps",
+		diagnostics.get("last_selected_last_known_location", {}).get("provider", "") == "gps",
 		"Fresher GPS result wins over a stale but slightly more accurate network cache"
 	)
 
@@ -265,13 +269,13 @@ func _test_android_prefers_acceptable_gps_over_network_cache(location_service_sc
 	network_location.latitude = 31.0
 	network_location.longitude = 121.0
 	network_location.accuracy = 25.0
-	network_location.time_millis = 50000
+	network_location.time_millis = _fresh_time_millis(-1000)
 
 	var gps_location := FakeJavaBridgeLocation.new()
 	gps_location.latitude = 31.00018
 	gps_location.longitude = 121.0
-	gps_location.accuracy = 45.0
-	gps_location.time_millis = 45000
+	gps_location.accuracy = 29.0
+	gps_location.time_millis = _fresh_time_millis(-3000)
 
 	runtime.activity.location_manager.locations["network"] = network_location
 	runtime.activity.location_manager.locations["gps"] = gps_location
@@ -286,9 +290,10 @@ func _test_android_prefers_acceptable_gps_over_network_cache(location_service_sc
 	service.poll_android_location_now()
 
 	_assert(
-		service.get_status().get("provider", "") == "gps",
+		service.get_diagnostics().get("last_selected_last_known_location", {}).get("provider", "") == "gps",
 		"Acceptable GPS fix is preferred over a slightly newer network cache"
 	)
+	_assert(not service.has_current_position(), "Acceptable last-known GPS does not set the player position")
 
 	service.free()
 
@@ -302,10 +307,12 @@ func _test_android_plugin_location_updates(location_service_script: Script) -> v
 	service.start()
 	service.apply_android_permission_result(true)
 
-	plugin.location_update.emit(31.0, 121.0, 18.0, "gps", 123450)
-	plugin.location_update.emit(31.00027, 121.0, 18.0, "gps", 123456)
+	plugin.location_update.emit(31.0, 121.0, 18.0, "gps", _fresh_time_millis(-1000), "live")
+	plugin.location_update.emit(31.00027, 121.0, 18.0, "gps", _fresh_time_millis(), "live")
 
 	_assert(plugin.start_called, "Android location plugin starts updates after permission is granted")
+	_assert(plugin.last_min_time_millis == 1000, "Android location plugin is requested with 1000ms update interval")
+	_assert(absf(plugin.last_min_distance_meters - 0.5) < 0.001, "Android location plugin is requested with 0.5m distance interval")
 	_assert(service.has_android_location_plugin(), "Android location plugin override is registered")
 	_assert(service.has_current_position(), "Android plugin location update is accepted")
 	_assert(
@@ -320,8 +327,12 @@ func _test_android_plugin_location_updates(location_service_script: Script) -> v
 	var diagnostics: Dictionary = service.get_diagnostics()
 	_assert(diagnostics.get("plugin_update_count", 0) == 2, "Diagnostics count Android plugin location updates")
 	_assert(
-		diagnostics.get("last_location_source", "") == "plugin",
-		"Diagnostics report plugin as the latest Android location source"
+		diagnostics.get("last_location_source", "") == "live",
+		"Diagnostics report live as the latest Android location source"
+	)
+	_assert(
+		diagnostics.get("last_plugin_location", {}).get("source", "") == "live",
+		"Diagnostics preserve live as the Android plugin location source"
 	)
 	_assert(
 		diagnostics.get("last_plugin_status", {}).get("code", "") == "updates_started",
@@ -335,75 +346,106 @@ func _test_android_plugin_location_updates(location_service_script: Script) -> v
 	service.free()
 
 
-func _test_android_fallback_poll_updates_after_plugin_live_location(location_service_script: Script) -> void:
+func _test_android_last_known_plugin_updates_diagnostics_without_origin(location_service_script: Script) -> void:
 	var plugin := FakeAndroidLocationPlugin.new()
-	var runtime := FakeAndroidRuntime.new()
 	var service: Node = location_service_script.new()
 	root.add_child(service)
 	service.set_runtime_mode_for_tests("android")
 	service.set_android_location_plugin_override(plugin)
-	service.set_android_runtime_override(runtime)
 	service.start()
 	service.apply_android_permission_result(true)
 
-	plugin.location_update.emit(31.0, 121.0, 18.0, "gps", 10000)
+	plugin.location_update.emit(31.00045, 121.0, 18.0, "gps", _fresh_time_millis(), "last_known")
 
-	var fresher_gps_location := FakeJavaBridgeLocation.new()
-	fresher_gps_location.latitude = 31.00045
-	fresher_gps_location.longitude = 121.0
-	fresher_gps_location.accuracy = 18.0
-	fresher_gps_location.time_millis = 30000
-	runtime.activity.location_manager.locations["gps"] = fresher_gps_location
-
-	service.refresh_android_location_manager()
-	service.poll_android_location_now()
-
+	var diagnostics: Dictionary = service.get_diagnostics()
+	_assert(not service.has_current_position(), "Android plugin last-known update does not set current position")
 	_assert(
-		service.get_current_position().y < -40.0,
-		"Fallback polling continues to refresh movement after plugin live location starts"
+		not bool(diagnostics.get("plugin_live_location_received", false)),
+		"Android plugin last-known update does not mark live location received"
 	)
 	_assert(
-		service.get_status().get("location_source", "") == "last_known",
-		"Newer fallback location becomes the latest Android location source"
+		diagnostics.get("origin_latitude", 0.0) == 0.0 and diagnostics.get("origin_longitude", 0.0) == 0.0,
+		"Android plugin last-known update does not set the Android origin"
+	)
+	_assert(
+		diagnostics.get("last_plugin_location", {}).get("source", "") == "last_known",
+		"Android plugin last-known update is preserved in diagnostics"
 	)
 
 	service.free()
 
 
-func _test_android_fallback_poll_ignores_stale_location_after_plugin_live_location(location_service_script: Script) -> void:
+func _test_android_stale_live_location_is_rejected(location_service_script: Script) -> void:
 	var plugin := FakeAndroidLocationPlugin.new()
-	var runtime := FakeAndroidRuntime.new()
 	var service: Node = location_service_script.new()
 	root.add_child(service)
 	service.set_runtime_mode_for_tests("android")
 	service.set_android_location_plugin_override(plugin)
-	service.set_android_runtime_override(runtime)
 	service.start()
 	service.apply_android_permission_result(true)
 
-	plugin.location_update.emit(31.0, 121.0, 18.0, "gps", 10000)
-	plugin.location_update.emit(31.00045, 121.0, 18.0, "gps", 30000)
+	plugin.location_update.emit(31.00045, 121.0, 18.0, "gps", _fresh_time_millis(-6000), "live")
 
-	var stale_gps_location := FakeJavaBridgeLocation.new()
-	stale_gps_location.latitude = 31.0
-	stale_gps_location.longitude = 121.0
-	stale_gps_location.accuracy = 18.0
-	stale_gps_location.time_millis = 10000
-	runtime.activity.location_manager.locations["gps"] = stale_gps_location
-
-	service.refresh_android_location_manager()
-	service.poll_android_location_now()
-
+	_assert(not service.has_current_position(), "Stale live Android location does not set current position")
 	_assert(
-		service.get_current_position().y < -40.0,
-		"Stale fallback polling does not move the player back after newer plugin location"
+		service.get_status().get("code", "") == "stale_location",
+		"Stale live Android location reports stale_location status"
 	)
+	var stale_status_time: int = int(service.get_status().get("time_millis", 0))
+
+	plugin.location_update.emit(31.0009, 121.0, 18.0, "gps", _fresh_time_millis(-11000), "live")
+	_assert(not service.has_current_position(), "Hard-stale live Android location still does not set current position")
 	_assert(
-		service.get_status().get("location_source", "") == "plugin",
-		"Stale fallback polling keeps the newer plugin location source"
+		int(service.get_status().get("time_millis", 0)) == stale_status_time,
+		"Hard-stale live Android location is rejected without refreshing stale status"
 	)
 
 	service.free()
+
+
+func _test_android_fresh_live_location_updates_target_and_smooth_display(location_service_script: Script) -> void:
+	var plugin := FakeAndroidLocationPlugin.new()
+	var service: Node = location_service_script.new()
+	root.add_child(service)
+	service.set_runtime_mode_for_tests("android")
+	service.set_android_location_plugin_override(plugin)
+	service.start()
+	service.apply_android_permission_result(true)
+
+	plugin.location_update.emit(31.0, 121.0, 18.0, "gps", _fresh_time_millis(-1000), "last_known")
+	_assert(not service.has_current_position(), "Fresh last-known Android plugin update still does not set current position")
+
+	plugin.location_update.emit(31.0, 121.0, 18.0, "gps", _fresh_time_millis(-500), "live")
+	plugin.location_update.emit(31.00045, 121.0, 18.0, "gps", _fresh_time_millis(), "live")
+
+	_assert(service.has_current_position(), "Fresh live Android plugin update sets current position")
+	_assert(service.get_current_position().y < -40.0, "Fresh live Android plugin update moves target position")
+	var target_after_live: Vector2 = service.get_current_position()
+	plugin.location_update.emit(31.001, 121.0, 18.0, "gps", _fresh_time_millis(), "last_known")
+	_assert(
+		service.get_current_position().is_equal_approx(target_after_live),
+		"Last-known Android plugin update after live does not change target position"
+	)
+	_assert(
+		service.get_status().get("location_source", "") == "live",
+		"Last-known Android plugin update after live does not downgrade live status"
+	)
+	_assert(
+		service.has_method("get_display_position"),
+		"LocationService exposes display position for smooth radar rendering"
+	)
+	if service.has_method("get_display_position"):
+		var initial_display_position: Vector2 = service.get_display_position()
+		service._process(0.1)
+		var smoothed_display_position: Vector2 = service.get_display_position()
+		_assert(smoothed_display_position.y < initial_display_position.y, "Display position moves toward target position")
+		_assert(smoothed_display_position.y > service.get_current_position().y, "Display position smooths instead of snapping to target")
+
+	service.free()
+
+
+func _fresh_time_millis(offset_millis: int = 0) -> int:
+	return int(Time.get_unix_time_from_system() * 1000.0) + offset_millis
 
 
 func _assert(condition: bool, message: String) -> void:
